@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ESP Buzzer + Input</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; }
+    input { padding: 0.4rem; font-size: 1rem; width: 4rem; text-align: center; }
+    button { padding: 0.4rem 0.8rem; font-size: 1rem; margin-left: 0.5rem; }
+    #status, #inputState { margin-top: 1rem; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>ESP Buzzer Control</h1>
+
+  <p>Enter <strong>1</strong> to turn the buzzer ON, <strong>0</strong> to turn it OFF.</p>
+  <label>
+    Value:
+    <input id="valueInput" type="text" maxlength="1" placeholder="0 or 1" />
+  </label>
+  <button onclick="sendValue()">Send</button>
+
+  <div id="status"></div>
+
+  <h2>Input pin state</h2>
+  <p>Digital input on ESP: <span id="inputState">?</span></p>
+
+  <script>
+    // Change this to the IP printed in Serial Monitor
+    const ESP_IP = "http://192.168.1.14";
+
+    async function sendValue() {
+      const input = document.getElementById('valueInput');
+      const statusEl = document.getElementById('status');
+      const v = input.value.trim();
+
+      if (v !== '0' && v !== '1') {
+        statusEl.textContent = 'Please enter 0 or 1.';
+        statusEl.style.color = 'red';
+        return;
+      }
+
+      try {
+        const res = await fetch(`${ESP_IP}/buzzer?value=${v}`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const text = await res.text();
+        statusEl.textContent = 'Sent value ' + v + '. ESP replied: ' + text;
+        statusEl.style.color = 'green';
+      } catch (err) {
+        statusEl.textContent = 'Error: ' + err.message;
+        statusEl.style.color = 'red';
+      }
+    }
+
+    async function pollInput() {
+      const el = document.getElementById('inputState');
+      try {
+        const res = await fetch(`${ESP_IP}/input`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const text = (await res.text()).trim();
+        if (text === '1') {
+          el.textContent = 'HIGH (1)';
+          el.style.color = 'green';
+        } else if (text === '0') {
+          el.textContent = 'LOW (0)';
+          el.style.color = 'blue';
+        } else {
+          el.textContent = 'Unknown: ' + text;
+          el.style.color = 'red';
+        }
+      } catch (err) {
+        el.textContent = 'Error: ' + err.message;
+        el.style.color = 'red';
+      }
+    }
+
+    // Start live updates
+    pollInput();
+    setInterval(pollInput, 500); // every 0.5s
+  </script>
+</body>
+</html>

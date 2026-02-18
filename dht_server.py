@@ -9,7 +9,7 @@ CORS(app)
 
 # === Device configuration ===
 # In production on Render, set DEVICE_001_TOKEN in the environment.
-DEVICE_001_TOKEN = os.environ.get("DEVICE_001_TOKEN", "CHANGE_ME_TO_A_LONG_RANDOM_STRING")
+DEVICE_001_TOKEN = os.environ.get("DEVICE_001_TOKEN", "ASf121094$334ko")
 
 # Map of device_id -> token (configure per device)
 AUTHORIZED_DEVICES = {
