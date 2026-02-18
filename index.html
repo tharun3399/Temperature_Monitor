@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>DHT11 Monitor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color-scheme: dark light;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #1a73e8 0, #000 55%);
+      color: #f9fafb;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.95);
+      padding: 2rem 2.5rem;
+      border-radius: 1.25rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+      max-width: 420px;
+      width: 100%;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      backdrop-filter: blur(18px);
+    }
+    .title {
+      margin: 0 0 0.25rem;
+      font-size: 1.5rem;
+      font-weight: 650;
+      letter-spacing: 0.03em;
+    }
+    .subtitle {
+      margin: 0 0 1.5rem;
+      font-size: 0.9rem;
+      color: #9ca3af;
+    }
+    .values {
+      display: flex;
+      gap: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    .chip {
+      flex: 1;
+      padding: 0.9rem 1rem;
+      border-radius: 0.85rem;
+      background: rgba(30, 64, 175, 0.65);
+      border: 1px solid rgba(129, 140, 248, 0.7);
+    }
+    .label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #a5b4fc;
+      margin-bottom: 0.25rem;
+    }
+    .value {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+    .unit {
+      font-size: 0.9rem;
+      color: #9ca3af;
+      margin-left: 0.25rem;
+    }
+    .status {
+      font-size: 0.85rem;
+      color: #9ca3af;
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      margin-right: 0.35rem;
+    }
+    .status-left {
+      display: inline-flex;
+      align-items: center;
+    }
+    .status-ok .dot {
+      background: #22c55e;
+      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2);
+    }
+    .status-error .dot {
+      background: #ef4444;
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
+    }
+    .btn-row {
+      margin-top: 1.25rem;
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+    }
+    button {
+      all: unset;
+      cursor: pointer;
+      padding: 0.5rem 0.95rem;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      color: #e5e7eb;
+      background: rgba(15, 23, 42, 0.9);
+      transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    button.primary {
+      background: linear-gradient(135deg, #2563eb, #4f46e5);
+      border-color: transparent;
+      box-shadow: 0 14px 35px rgba(37, 99, 235, 0.4);
+    }
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.6);
+    }
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.7);
+    }
+    @media (max-width: 480px) {
+      .card {
+        margin: 1.25rem;
+        padding: 1.5rem 1.4rem;
+      }
+      .values {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1 class="title">DHT11 Live Monitor</h1>
+    <p class="subtitle">Streaming temperature and humidity from your ESP8266 over HTTP.</p>
+
+    <div class="values">
+      <div class="chip">
+        <div class="label">Temperature</div>
+        <div class="value"><span id="temp">--</span><span class="unit">°C</span></div>
+      </div>
+      <div class="chip">
+        <div class="label">Humidity</div>
+        <div class="value"><span id="hum">--</span><span class="unit">%</span></div>
+      </div>
+    </div>
+
+    <div class="status" id="statusRow">
+      <div class="status-left">
+        <span class="dot"></span>
+        <span id="statusText">Waiting for first reading…</span>
+      </div>
+      <span id="timeText">--</span>
+    </div>
+
+    <div class="btn-row">
+      <button id="refreshBtn">Refresh</button>
+      <button class="primary" id="autoBtn">Auto: On</button>
+    </div>
+  </div>
+
+  <script>
+    // Use your Render backend URL
+    const API_URL = "https://temperature-monitor.onrender.com/api/devices/device-001/readings/latest";
+
+    const tempEl = document.getElementById("temp");
+    const humEl = document.getElementById("hum");
+    const statusRow = document.getElementById("statusRow");
+    const statusText = document.getElementById("statusText");
+    const timeText = document.getElementById("timeText");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const autoBtn = document.getElementById("autoBtn");
+
+    let autoRefresh = true;
+    let intervalId = null;
+
+    function setStatus(ok, text) {
+      statusRow.classList.toggle("status-ok", ok);
+      statusRow.classList.toggle("status-error", !ok);
+      statusText.textContent = text;
+    }
+
+    async function fetchReading() {
+      try {
+        setStatus(true, "Contacting server…");
+        const res = await fetch(API_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+
+        if (typeof data.temperature !== "number" || typeof data.humidity !== "number") {
+          throw new Error("Invalid payload");
+        }
+
+        tempEl.textContent = data.temperature.toFixed(1);
+        humEl.textContent = data.humidity.toFixed(1);
+
+        const ts = data.timestamp || new Date().toISOString();
+        const t = new Date(ts);
+        timeText.textContent = isNaN(t) ? ts : t.toLocaleTimeString();
+
+        setStatus(true, "Live data from ESP8266");
+      } catch (err) {
+        console.error(err);
+        setStatus(false, "Error: " + err.message + " (check backend & Wi‑Fi)");
+      }
+    }
+
+    function startAuto() {
+      if (intervalId) clearInterval(intervalId);
+      intervalId = setInterval(fetchReading, 5000); // 5s
+      autoBtn.textContent = "Auto: On";
+      autoRefresh = true;
+    }
+
+    function stopAuto() {
+      if (intervalId) clearInterval(intervalId);
+      intervalId = null;
+      autoBtn.textContent = "Auto: Off";
+      autoRefresh = false;
+    }
+
+    refreshBtn.addEventListener("click", fetchReading);
+    autoBtn.addEventListener("click", () => {
+      autoRefresh ? stopAuto() : startAuto();
+    });
+
+    // Kick things off
+    startAuto();
+    fetchReading();
+  </script>
+</body>
+</html>
